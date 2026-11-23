@@ -3,7 +3,7 @@ ARG BUILD_DATE
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 ENV DEV_CONTAINER_NAME="leuffen-jekyll-builder"
 
-ADD / /opt
+COPY container/ /opt/
 RUN ["bash", "-c", "chown -R user /opt"]
 RUN ["/kickstart/run/entrypoint.sh", "build"]
 ENTRYPOINT ["/kickstart/run/entrypoint.sh", "standalone"]

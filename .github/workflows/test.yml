@@ -19,6 +19,7 @@ jobs:
         uses: docker/build-push-action@v7.4.0
         with:
           context: .
+          file: container/Dockerfile
           load: true
           tags: leuffen-jekyll-builder:local
       - name: Validate PHP and Apache
@@ -28,9 +29,11 @@ jobs:
           docker compose -f tests/compose.yml config --quiet
       - name: Validate PHP client
         run: |
-          php -l docs/LeuffenJekyllBuilderClient.php
-          php -l docs/Exception/JekyllBuilderBuildException.php
-          php -l docs/Exception/JekyllBuilderConnectionException.php
+          php -l src/LeuffenJekyllBuilderClient.php
+          php -l src/Exception/JekyllBuilderBuildException.php
+          php -l src/Exception/JekyllBuilderConnectionException.php
+          composer validate --no-check-publish
+          composer validate --working-dir=container --no-check-publish
           php -l tests/http-test.php
           docker compose -f docs/stack.yml config --quiet
       - name: Start builder

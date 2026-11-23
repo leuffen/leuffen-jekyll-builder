@@ -1,8 +1,27 @@
 # Leuffen Jekyll Builder
 
-Kickstart PHP/Apache server on **port 80**, using the default `www/index.php`
-front controller (no custom Apache configuration). The service accepts an
-uploaded Jekyll project ZIP and returns a ZIP with the built static files.
+This repository provides two independent components:
+
+- The **root Composer package** `leuffen/jekyll-builder-client` is only the
+  reusable PHP HTTP client, autoloaded from `src/`.
+- `container/` is the standalone Kickstart PHP/Apache build service with its
+  own `composer.json`, `Dockerfile`, `.kick.yml`, `www/` and server `src/`.
+
+The server listens on **port 80**, using the default `container/www/index.php`
+front controller (no custom Apache configuration). It accepts a ZIP of a Jekyll
+project and returns a ZIP containing the generated static files.
+
+## Docker build
+
+Build from the repository root while selecting the container Dockerfile:
+
+```bash
+docker build -f container/Dockerfile -t leuffen-jekyll-builder .
+```
+
+Only `container/` is copied into the image under `/opt`. Composer dependencies
+for the server are declared separately in `container/composer.json`; the
+server currently requires no external Composer libraries.
 
 ## HTTP API
 
@@ -73,20 +92,18 @@ network.
 
 ## PHP client example
 
-Install `phore/http-client` in the calling PHP application:
+Install the client package in the calling PHP application:
 
 ```bash
-composer require phore/http-client
+composer require leuffen/jekyll-builder-client:dev-main
 ```
 
-The reusable client and separate exception classes are under `docs/`.
-Copy those files to your application and load the client after Composer's
-`vendor/autoload.php`:
+The client and its exceptions are autoloaded directly from the root Composer
+package (`src/`). No copying of PHP files is required:
 
 ```php
 <?php
 require __DIR__ . '/vendor/autoload.php';
-require __DIR__ . '/LeuffenJekyllBuilderClient.php';
 
 use Leuffen\JekyllBuilder\Client\LeuffenJekyllBuilderClient;
 use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderBuildException;
@@ -115,6 +132,7 @@ available for callers who already have an input ZIP. Build failures expose `http
 `excerpt`, `stdout` and `stderr`. If the source cannot be
 identified, the corresponding fields are `null`.
 
-Run `composer install --working-dir=tests` followed by
+Run `composer validate` and `composer validate --working-dir=container`, then
+`composer install --working-dir=tests` followed by
 `bash tests/integration.sh` to verify success and failure responses. The HTTP
 test client uses `phore/http-client`.

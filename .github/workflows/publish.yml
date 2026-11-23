@@ -32,6 +32,7 @@ jobs:
         uses: docker/build-push-action@v7.4.0
         with:
           context: .
+          file: container/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository }}:unstable
           cache-from: type=gha,scope=builder

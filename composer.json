@@ -1,0 +1,19 @@
+{
+  "name": "leuffen/jekyll-builder-client",
+  "description": "HTTP client for the Leuffen Jekyll Builder service",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.2",
+    "ext-zip": "*",
+    "phore/http-client": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Leuffen\\JekyllBuilder\\Client\\": "src/"
+    }
+  },
+  "config": {
+    "allow-plugins": false
+  }
+}
