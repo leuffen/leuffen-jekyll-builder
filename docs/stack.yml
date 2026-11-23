@@ -1,0 +1,14 @@
+# Create once: docker network create --driver overlay --attachable pagebuilder-internal
+# Deploy with: docker stack deploy -c docs/stack.yml jekyll
+services:
+  builder:
+    image: ghcr.io/leuffen/leuffen-jekyll-builder:unstable
+    networks:
+      builder-network:
+        aliases:
+          - jekyll-builder
+
+networks:
+  builder-network:
+    external: true
+    name: pagebuilder-internal
