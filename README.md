@@ -15,6 +15,20 @@ the enclosing directory.
 - **422**: `application/json`, failed/timed-out Jekyll build with `error`,
   `exitCode`, `stdout` and `stderr`.
 
+Example of a failed Jekyll build (HTTP `422`, `application/json`):
+
+```json
+{
+  "error": "Jekyll build failed",
+  "exitCode": 1,
+  "stdout": "Configuration file: /tmp/jekyll-builder-.../source/_config.yml\n",
+  "stderr": "Liquid Exception: Unknown tag 'definitely_not_a_liquid_tag' in index.html\n"
+}
+```
+
+`stdout` and `stderr` contain the captured Jekyll output; their exact
+contents depend on the project and the underlying Jekyll version.
+
 There is no application authentication; deploy on a trusted internal network
 only. ZIP contents are validated and builds use temporary directories.
 Uploads are limited to 20 MiB, extracted content to 100 MiB and Jekyll
