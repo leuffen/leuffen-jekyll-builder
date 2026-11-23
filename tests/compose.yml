@@ -1,0 +1,7 @@
+services:
+  builder:
+    image: leuffen-jekyll-builder:local
+    build:
+      context: ..
+    ports:
+      - "127.0.0.1:8080:80"

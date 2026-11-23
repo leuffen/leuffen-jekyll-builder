@@ -1,0 +1,14 @@
+version: 1
+from: "ghcr.io/nfra-project/kickstart-flavor-php:8.4"
+ports: "80:80"
+
+packages: [jekyll, zip, unzip, php8.5-zip,
+  ruby-jekyll-sass-converter, ruby-jekyll-optional-front-matter,
+  ruby-jekyll-sitemap, ruby-jekyll-seo-tag, ruby-jekyll-feed]
+
+command:
+  build:
+    - >-
+      php -r 'if (!extension_loaded("zip")) { throw new RuntimeException("PHP zip extension missing"); }'
+    - "sudo mkdir -p /tmp/jekyll-builder"
+    - "sudo chown user:user /tmp/jekyll-builder"

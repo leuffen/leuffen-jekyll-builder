@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: docker/setup-buildx-action@v4.4.1
+      - name: Build image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          load: true
+          tags: leuffen-jekyll-builder:local
+      - name: Validate PHP and Apache
+        run: |
+          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php'
+          docker run --rm --entrypoint apache2ctl leuffen-jekyll-builder:local configtest
+          docker compose -f tests/compose.yml config --quiet
+      - name: Start builder
+        run: docker compose -f tests/compose.yml up -d --no-build --wait --wait-timeout 90
+      - name: HTTP ZIP integration
+        run: bash tests/integration.sh
+      - name: Service logs
+        if: always()
+        run: docker compose -f tests/compose.yml logs --no-color
+      - name: Cleanup
+        if: always()
+        run: docker compose -f tests/compose.yml down -v
