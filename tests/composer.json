@@ -3,7 +3,7 @@
   "description": "HTTP integration test dependencies",
   "type": "project",
   "require": {
-    "leuffen/leuffen-jekyll-builder": "dev-main"
+    "leuffen/jekyll-builder-client": "dev-main"
   },
   "config": {
     "allow-plugins": false
@@ -14,7 +14,7 @@
       "url": "../",
       "options": {
         "versions": {
-          "leuffen/leuffen-jekyll-builder": "dev-main"
+          "leuffen/jekyll-builder-client": "dev-main"
         }
       }
     }
