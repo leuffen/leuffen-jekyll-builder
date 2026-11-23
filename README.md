@@ -13,7 +13,7 @@ the enclosing directory.
 - **200**: `application/zip`, containing the generated HTML and assets.
 - **400/413**: `application/json`, invalid or oversized ZIP.
 - **422**: `application/json`, failed/timed-out Jekyll build with `error`,
-  `exitCode`, `stdout` and `stderr`.
+  `exitCode`, `stdout`, `stderr`, `file`, `line`, `excerpt` and `cause`.
 
 Example of a failed Jekyll build (HTTP `422`, `application/json`):
 
@@ -27,7 +27,10 @@ Example of a failed Jekyll build (HTTP `422`, `application/json`):
 ```
 
 `stdout` and `stderr` contain the captured Jekyll output; their exact
-contents depend on the project and the underlying Jekyll version.
+contents depend on the project and the underlying Jekyll version. `file` is
+relative to the ZIP root; it never contains a temporary directory. If no source
+can be attributed, `file`, `line` and `excerpt` are `null`, and raw `stdout`
+and `stderr` remain available.
 
 There is no application authentication; deploy on a trusted internal network
 only. ZIP contents are validated and builds use temporary directories.
@@ -46,4 +49,6 @@ curl -f -H 'Content-Type: application/zip' --data-binary @project.zip \
 unzip -l output.zip
 ```
 
-Run `bash tests/integration.sh` to verify success and failure responses.
+Run `composer install --working-dir=tests` followed by
+`bash tests/integration.sh` to verify success and failure responses. The HTTP
+test client uses `phore/http-client`.

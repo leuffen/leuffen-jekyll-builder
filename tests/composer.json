@@ -1,0 +1,11 @@
+{
+  "name": "leuffen/jekyll-builder-tests",
+  "description": "HTTP integration test dependencies",
+  "type": "project",
+  "require": {
+    "phore/http-client": "*"
+  },
+  "config": {
+    "allow-plugins": false
+  }
+}

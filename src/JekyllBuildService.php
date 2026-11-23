@@ -11,6 +11,7 @@ use Throwable;
 use ZipArchive;
 
 require_once __DIR__ . '/BuildException.php';
+require_once __DIR__ . '/JekyllErrorAnalyzer.php';
 
 final class JekyllBuildService
 {
@@ -141,12 +142,17 @@ final class JekyllBuildService
             $stdout = substr((string) @file_get_contents($stdoutFile), 0, 65536);
             $stderr = substr((string) @file_get_contents($stderrFile), 0, 65536);
             if ($exitCode !== 0) {
+                $diagnostic = (new JekyllErrorAnalyzer())->analyze($stderr, $stdout, $source);
                 throw new BuildException(
                     $exitCode === 124 ? 'Jekyll build timed out' : 'Jekyll build failed',
                     422,
                     $exitCode,
                     $stdout,
                     $stderr,
+                    $diagnostic['file'],
+                    $diagnostic['line'],
+                    $diagnostic['excerpt'],
+                    $diagnostic['cause'],
                 );
             }
 

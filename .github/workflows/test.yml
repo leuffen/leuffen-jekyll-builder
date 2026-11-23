@@ -23,11 +23,13 @@ jobs:
           tags: leuffen-jekyll-builder:local
       - name: Validate PHP and Apache
         run: |
-          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php'
+          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php && php -l /opt/src/JekyllErrorAnalyzer.php'
           docker run --rm --entrypoint apache2ctl leuffen-jekyll-builder:local configtest
           docker compose -f tests/compose.yml config --quiet
       - name: Start builder
         run: docker compose -f tests/compose.yml up -d --no-build --wait --wait-timeout 90
+      - name: Install PHP HTTP test client
+        run: composer install --working-dir=tests --no-interaction --prefer-dist
       - name: HTTP ZIP integration
         run: bash tests/integration.sh
       - name: Service logs

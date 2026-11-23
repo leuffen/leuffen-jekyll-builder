@@ -34,6 +34,10 @@ try {
         'exitCode' => $e->exitCode,
         'stdout' => $e->stdout,
         'stderr' => $e->stderr,
+        'file' => $e->file,
+        'line' => $e->line,
+        'excerpt' => $e->excerpt,
+        'cause' => $e->cause,
     ], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('Jekyll Builder internal error: ' . $e->getMessage());
