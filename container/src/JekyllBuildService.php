@@ -134,7 +134,8 @@ final class JekyllBuildService
                 1 => ['file', $stdoutFile, 'w'],
                 2 => ['file', $stderrFile, 'w'],
             ], $pipes, $root, ['PATH' => getenv('PATH') ?: '/usr/bin:/bin',
-                'HOME' => $root, 'JEKYLL_NO_BUNDLER_REQUIRE' => 'true']);
+                'HOME' => $root, 'JEKYLL_NO_BUNDLER_REQUIRE' => 'true',
+                'JEKYLL_ENV' => getenv('JEKYLL_ENV') ?: 'production']);
             if (!is_resource($process)) {
                 throw new BuildException('Cannot start Jekyll', 500);
             }
