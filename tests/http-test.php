@@ -74,15 +74,26 @@ if (!str_contains((string) $invalidError['error'], 'Invalid ZIP') || $invalidErr
 echo "HTTP ZIP upload, build response and structured error cases passed\n";
 
 
-// Public client API must preserve file, location and diagnostic details.
+// The public client sends the project directory and extracts into target.
 $client = new LeuffenJekyllBuilderClient('http://127.0.0.1:8080');
-$output = $client->buildZip($directory . '/site.zip');
-if (strncmp($output, "PK", 2) !== 0) {
-    throw new RuntimeException('Expected output ZIP bytes from client');
+$target = $directory . '/published';
+$client->build(__DIR__ . '/fixtures/site', $target);
+$html = file_get_contents($target . '/index.html');
+if ($html === false || !str_contains($html, 'ZIP Builder smoke')) {
+    throw new RuntimeException('Client did not extract generated website');
 }
 
 try {
-    $client->buildZip($directory . '/broken.zip');
+    $client->build(__DIR__ . '/fixtures/site', $target);
+    throw new RuntimeException('Expected refusal of a nonempty target directory');
+} catch (InvalidArgumentException $exception) {
+    if (!str_contains($exception->getMessage(), 'must be empty')) {
+        throw $exception;
+    }
+}
+
+try {
+    $client->build(__DIR__ . '/fixtures/broken', $directory . '/broken-output');
     throw new RuntimeException('Expected a typed Jekyll build error');
 } catch (JekyllBuilderBuildException $exception) {
     if ($exception->sourceFile !== 'index.html'
@@ -94,7 +105,8 @@ try {
 }
 
 try {
-    (new LeuffenJekyllBuilderClient('http://127.0.0.1:1'))->buildZip($directory . '/site.zip');
+    (new LeuffenJekyllBuilderClient('http://127.0.0.1:1'))
+        ->build(__DIR__ . '/fixtures/site', $directory . '/unavailable-output');
     throw new RuntimeException('Expected an unavailable-service exception');
 } catch (JekyllBuilderConnectionException $exception) {
     if (!str_contains($exception->getMessage(), 'not available')) {

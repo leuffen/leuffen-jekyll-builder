@@ -95,8 +95,7 @@ use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderConnectionException;
 $client = new LeuffenJekyllBuilderClient('http://jekyll-builder');
 
 try {
-    $siteZip = $client->build('/projects/example');
-    file_put_contents('/tmp/site.zip', $siteZip);
+    $client->build('/projects/example', '/srv/sites/example');
 } catch (JekyllBuilderBuildException $error) {
     echo $error->sourceFile ?? 'Unknown source file';
     echo $error->sourceLine ?? '';
@@ -108,8 +107,10 @@ try {
 }
 ```
 
-Alternatively, `buildZip('/path/project.zip')` sends an existing ZIP and returns
-the output ZIP bytes. Build failures expose `httpStatus`, `exitCode`,
+`build($sourceDir, $targetDir)` archives the contents of the source directory
+and extracts the generated website into the target directory. The target must
+be new or empty; existing files are not overwritten. `buildZip()` remains
+available for callers who already have an input ZIP. Build failures expose `httpStatus`, `exitCode`,
 `sourceFile` (relative to the upload ZIP), `sourceLine`, `cause`,
 `excerpt`, `stdout` and `stderr`. If the source cannot be
 identified, the corresponding fields are `null`.
