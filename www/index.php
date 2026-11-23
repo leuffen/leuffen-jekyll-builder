@@ -34,7 +34,7 @@ try {
         'exitCode' => $e->exitCode,
         'stdout' => $e->stdout,
         'stderr' => $e->stderr,
-        'file' => $e->file,
+        'file' => $e->sourceFile,
         'line' => $e->line,
         'excerpt' => $e->excerpt,
         'cause' => $e->cause,
