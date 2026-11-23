@@ -25,7 +25,8 @@ final class JekyllErrorAnalyzer
     public function analyze(string $stderr, string $stdout, string $sourceRoot): array
     {
         $diagnostic = ['file' => null, 'line' => null, 'excerpt' => null, 'cause' => null];
-        $message = trim($stderr) !== '' ? $stderr : $stdout;
+        $rawMessage = trim($stderr) !== '' ? $stderr : $stdout;
+        $message = preg_replace('/\x1B\[[0-9;]*[A-Za-z]/', '', $rawMessage) ?? $rawMessage;
         $messages = preg_split('/\R/', $message) ?: [];
 
         // Extract the most useful error line without exposing an invented file.
@@ -90,16 +91,6 @@ final class JekyllErrorAnalyzer
 
     private function findLine(string $message, string $sourceFile, string $relativeFile): ?int
     {
-        foreach ([$relativeFile, basename($relativeFile)] as $candidate) {
-            if (preg_match('~(?:^|[\s(])' . preg_quote($candidate, '~') . ':(\d+)(?=[:\s)]|$)~m', $message, $matches)) {
-                return (int) $matches[1];
-            }
-        }
-
-        if (preg_match('/\b(?:on\s+)?line\s+(\d+)\b/i', $message, $matches)) {
-            return (int) $matches[1];
-        }
-
         // If Jekyll names an unknown Liquid tag but not a line, locate its
         // unique occurrence in the source. Multiple matches are ambiguous.
         if (preg_match('/Unknown tag [\x27"]([A-Za-z0-9_-]+)[\x27"]/i', $message, $matches)) {
@@ -118,6 +109,16 @@ final class JekyllErrorAnalyzer
                 }
             }
             return $found;
+        }
+
+        foreach ([$relativeFile, basename($relativeFile)] as $candidate) {
+            if (preg_match('~(?:^|[\s(])' . preg_quote($candidate, '~') . ':(\d+)(?=[:\s)]|$)~m', $message, $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        if (preg_match('/\b(?:on\s+)?line\s+(\d+)\b/i', $message, $matches)) {
+            return (int) $matches[1];
         }
 
         return null;
