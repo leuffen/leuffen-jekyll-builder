@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
+require __DIR__ . '/../docs/LeuffenJekyllBuilderClient.php';
+
+use Leuffen\JekyllBuilder\Client\LeuffenJekyllBuilderClient;
+use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderBuildException;
+use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderConnectionException;
 
 $directory = $argv[1] ?? null;
 if ($directory === null) {
@@ -67,3 +72,34 @@ if (!str_contains((string) $invalidError['error'], 'Invalid ZIP') || $invalidErr
 }
 
 echo "HTTP ZIP upload, build response and structured error cases passed\n";
+
+
+// Public client API must preserve file, location and diagnostic details.
+$client = new LeuffenJekyllBuilderClient('http://127.0.0.1:8080');
+$output = $client->buildZip($directory . '/site.zip');
+if (strncmp($output, "PK", 2) !== 0) {
+    throw new RuntimeException('Expected output ZIP bytes from client');
+}
+
+try {
+    $client->buildZip($directory . '/broken.zip');
+    throw new RuntimeException('Expected a typed Jekyll build error');
+} catch (JekyllBuilderBuildException $exception) {
+    if ($exception->sourceFile !== 'index.html'
+        || $exception->sourceLine !== 3
+        || !str_contains((string) $exception->cause, 'Unknown tag')
+        || !str_contains((string) $exception->excerpt, 'definitely_not_a_liquid_tag')) {
+        throw new RuntimeException('Client lost Jekyll build diagnostics', 0, $exception);
+    }
+}
+
+try {
+    (new LeuffenJekyllBuilderClient('http://127.0.0.1:1'))->buildZip($directory . '/site.zip');
+    throw new RuntimeException('Expected an unavailable-service exception');
+} catch (JekyllBuilderConnectionException $exception) {
+    if (!str_contains($exception->getMessage(), 'not available')) {
+        throw new RuntimeException('Unexpected connection exception', 0, $exception);
+    }
+}
+
+echo "Jekyll Builder PHP client cases passed\n";

@@ -35,7 +35,7 @@ try {
         'stdout' => $e->stdout,
         'stderr' => $e->stderr,
         'file' => $e->sourceFile,
-        'line' => $e->line,
+        'line' => $e->sourceLine,
         'excerpt' => $e->excerpt,
         'cause' => $e->cause,
     ], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);

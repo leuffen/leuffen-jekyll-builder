@@ -22,7 +22,11 @@ Example of a failed Jekyll build (HTTP `422`, `application/json`):
   "error": "Jekyll build failed",
   "exitCode": 1,
   "stdout": "Configuration file: /tmp/jekyll-builder-.../source/_config.yml\n",
-  "stderr": "Liquid Exception: Unknown tag 'definitely_not_a_liquid_tag' in index.html\n"
+  "stderr": "Liquid Exception: Unknown tag 'definitely_not_a_liquid_tag' in index.html\n",
+  "file": "index.html",
+  "line": 3,
+  "cause": "Liquid Exception: Unknown tag 'definitely_not_a_liquid_tag' in index.html",
+  "excerpt": "  1 | ---\n  2 | ---\n> 3 | {% definitely_not_a_liquid_tag %}"
 }
 ```
 
@@ -38,16 +42,77 @@ Uploads are limited to 20 MiB, extracted content to 100 MiB and Jekyll
 execution to 120 seconds. Jekyll `_plugins` execute Ruby code, so projects
 must come from trusted sources; this container is **not** a security sandbox.
 
-## Example
+## Docker Stack and shared network
+
+The builder runs on Apache port **80** and does not publish a host port.
+Both the builder and calling application join the same existing overlay network:
 
 ```bash
-docker build -t leuffen-jekyll-builder:local .
-docker compose -f tests/compose.yml up -d --no-build
-(cd my-jekyll-project && zip -qr ../project.zip .)
-curl -f -H 'Content-Type: application/zip' --data-binary @project.zip \
-  http://localhost:8080/build -o output.zip
-unzip -l output.zip
+docker network create --driver overlay --attachable pagebuilder-internal
+docker stack deploy -c docs/stack.yml jekyll
 ```
+
+The application stack adds the same network, for example:
+
+```yaml
+services:
+  pagebuilder:
+    image: your-pagebuilder-image:latest
+    networks: [builder-network]
+
+networks:
+  builder-network:
+    external: true
+    name: pagebuilder-internal
+```
+
+From that container, reach the builder directly at
+`http://jekyll-builder/build` (internal Docker DNS alias). No
+authentication is required; do not expose the builder outside the internal
+network.
+
+## PHP client example
+
+Install `phore/http-client` in the calling PHP application:
+
+```bash
+composer require phore/http-client
+```
+
+The reusable client and separate exception classes are under `docs/`.
+Copy those files to your application and load the client after Composer's
+`vendor/autoload.php`:
+
+```php
+<?php
+require __DIR__ . '/vendor/autoload.php';
+require __DIR__ . '/LeuffenJekyllBuilderClient.php';
+
+use Leuffen\JekyllBuilder\Client\LeuffenJekyllBuilderClient;
+use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderBuildException;
+use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderConnectionException;
+
+$client = new LeuffenJekyllBuilderClient('http://jekyll-builder');
+
+try {
+    $siteZip = $client->build('/projects/example');
+    file_put_contents('/tmp/site.zip', $siteZip);
+} catch (JekyllBuilderBuildException $error) {
+    echo $error->sourceFile ?? 'Unknown source file';
+    echo $error->sourceLine ?? '';
+    echo $error->cause ?? $error->getMessage();
+    echo $error->excerpt ?? '';
+    echo $error->stderr;
+} catch (JekyllBuilderConnectionException $error) {
+    echo 'Builder not available: ' . $error->getMessage();
+}
+```
+
+Alternatively, `buildZip('/path/project.zip')` sends an existing ZIP and returns
+the output ZIP bytes. Build failures expose `httpStatus`, `exitCode`,
+`sourceFile` (relative to the upload ZIP), `sourceLine`, `cause`,
+`excerpt`, `stdout` and `stderr`. If the source cannot be
+identified, the corresponding fields are `null`.
 
 Run `composer install --working-dir=tests` followed by
 `bash tests/integration.sh` to verify success and failure responses. The HTTP

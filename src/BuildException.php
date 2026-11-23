@@ -15,7 +15,7 @@ final class BuildException extends RuntimeException
         public readonly string $stdout = '',
         public readonly string $stderr = '',
         public readonly ?string $sourceFile = null,
-        public readonly ?int $line = null,
+        public readonly ?int $sourceLine = null,
         public readonly ?string $excerpt = null,
         public readonly ?string $cause = null,
     ) {
