@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/JekyllErrorAnalyzer.php';
+require __DIR__ . '/../container/src/JekyllErrorAnalyzer.php';
 
 use Leuffen\JekyllBuilder\JekyllErrorAnalyzer;
 
