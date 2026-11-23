@@ -2,7 +2,7 @@
 
 This repository provides two independent components:
 
-- The **root Composer package** `leuffen/leuffen-jekyll-builder` is only the
+- The **root Composer package** `leuffen/jekyll-builder-client` is only the
   reusable PHP HTTP client, autoloaded from `src/`.
 - `container/` is the standalone Kickstart PHP/Apache build service with its
   own `composer.json`, `Dockerfile`, `.kick.yml`, `www/` and server `src/`.
@@ -95,7 +95,7 @@ network.
 Install the client package in the calling PHP application:
 
 ```bash
-composer require leuffen/leuffen-jekyll-builder:dev-main
+composer require leuffen/jekyll-builder-client:dev-main
 ```
 
 The client and its exceptions are autoloaded directly from the root Composer
