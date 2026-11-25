@@ -25,6 +25,10 @@ server currently requires no external Composer libraries.
 
 ## HTTP API
 
+The optional query parameter `compressionLevel` controls the compression of the
+returned ZIP (0 = store, 1–9 = DEFLATE, default: 2). Invalid values return HTTP
+400. For example, `POST /build?compressionLevel=1` requests fast compression.
+
 `POST /build` with `Content-Type: application/zip` and the ZIP bytes as the
 raw HTTP body. Archive the project contents (including `_config.yml`), not
 the enclosing directory.
@@ -129,7 +133,10 @@ and extracts the generated website into the target directory. Entries named
 `.git` (directories or worktree files) are excluded at every depth; other
 hidden files are included. The target must be new or empty; existing files are
 not overwritten. `buildZip()` remains available for callers who already have
-an input ZIP and sends that ZIP unchanged. Build failures expose `httpStatus`, `exitCode`,
+an input ZIP and sends that ZIP unchanged. The client defaults to compression
+level 2 for both directions. Call `$client->setCompressionLevel(1)` before a
+build to use level 1 for generated uploads and request level 1 for the result.
+For existing input ZIPs, the setting affects only the result. Build failures expose `httpStatus`, `exitCode`,
 `sourceFile` (relative to the upload ZIP), `sourceLine`, `cause`,
 `excerpt`, `stdout` and `stderr`. If the source cannot be
 identified, the corresponding fields are `null`.
