@@ -38,6 +38,17 @@ the enclosing directory.
 - **422**: `application/json`, failed/timed-out Jekyll build with `error`,
   `exitCode`, `stdout`, `stderr`, `file`, `line`, `excerpt` and `cause`.
 
+Build responses include an `X-Debug-Info` header containing a JSON object:
+
+```json
+{"timingInfo":{"jekyll":1234},"warnings":[],"truncated":false}
+```
+
+Process times are elapsed milliseconds, including failed Jekyll executions.
+Only explicit warning lines from the captured process output are included.
+The serialized header value is limited to 3072 bytes; oversized warnings are
+omitted and `truncated` is set to `true`. The ZIP or error body is unchanged.
+
 Example of a failed Jekyll build (HTTP `422`, `application/json`):
 
 ```json
@@ -140,6 +151,11 @@ For existing input ZIPs, the setting affects only the result. Build failures exp
 `sourceFile` (relative to the upload ZIP), `sourceLine`, `cause`,
 `excerpt`, `stdout` and `stderr`. If the source cannot be
 identified, the corresponding fields are `null`.
+
+After `build()` or `buildZip()`, `$client->getTimingInfo()` returns process
+names mapped to milliseconds. `$client->getDebugInfo()` returns the complete
+debug metadata, including warnings and the truncation flag. Both are also
+available after a remote build exception and reset on the next attempt.
 
 Run `composer validate` and `composer validate --working-dir=container`, then
 `composer install --working-dir=tests` followed by

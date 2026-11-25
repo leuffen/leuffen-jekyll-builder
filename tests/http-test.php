@@ -33,6 +33,14 @@ if ($success->getHttpStatus() !== 200 || $success->getContentType() !== 'applica
     throw new RuntimeException('Expected HTTP 200 ZIP: ' . $success->getBody());
 }
 
+$debugHeader = $success->getHeader('X-Debug-Info');
+$debug = json_decode($debugHeader, true, 512, JSON_THROW_ON_ERROR);
+if (strlen($debugHeader) > 3072 || !is_int($debug['timingInfo']['jekyll'] ?? null)
+    || $debug['timingInfo']['jekyll'] < 0 || !is_array($debug['warnings'] ?? null)
+    || !is_bool($debug['truncated'] ?? null)) {
+    throw new RuntimeException('Invalid HTTP debug metadata');
+}
+
 $zipPath = $directory . '/output.zip';
 file_put_contents($zipPath, $success->getBody());
 $zip = new ZipArchive();
@@ -53,6 +61,11 @@ if ($failure->getHttpStatus() !== 422 || $failure->getContentType() !== 'applica
     throw new RuntimeException('Expected HTTP 422 JSON: ' . $failure->getBody());
 }
 
+$debug = json_decode($failure->getHeader('X-Debug-Info'), true, 512, JSON_THROW_ON_ERROR);
+if (!is_int($debug['timingInfo']['jekyll'] ?? null) || $debug['timingInfo']['jekyll'] < 0) {
+    throw new RuntimeException('Missing Jekyll timing in HTTP error response');
+}
+
 $error = json_decode($failure->getBody(), true, 512, JSON_THROW_ON_ERROR);
 if ($error['file'] !== 'index.html' || $error['line'] !== 3
     || !str_contains((string) $error['excerpt'], 'definitely_not_a_liquid_tag')
@@ -63,6 +76,11 @@ if ($error['file'] !== 'index.html' || $error['line'] !== 3
 $invalid = $send($directory . '/invalid.zip');
 if ($invalid->getHttpStatus() !== 400 || $invalid->getContentType() !== 'application/json') {
     throw new RuntimeException('Expected HTTP 400 JSON: ' . $invalid->getBody());
+}
+
+$debug = json_decode($invalid->getHeader('X-Debug-Info'), true, 512, JSON_THROW_ON_ERROR);
+if ($debug['timingInfo'] !== [] || $debug['warnings'] !== [] || $debug['truncated'] !== false) {
+    throw new RuntimeException('Invalid ZIP must not report a process that did not run');
 }
 
 $invalidError = json_decode($invalid->getBody(), true, 512, JSON_THROW_ON_ERROR);
@@ -77,6 +95,10 @@ echo "HTTP ZIP upload, build response and structured error cases passed\n";
 $client = new LeuffenJekyllBuilderClient('http://127.0.0.1:8080');
 $target = $directory . '/published';
 $client->build(__DIR__ . '/fixtures/site', $target);
+$timing = $client->getTimingInfo();
+if (!is_int($timing['jekyll'] ?? null) || $timing['jekyll'] < 0) {
+    throw new RuntimeException('Client lost Jekyll process timing');
+}
 $html = file_get_contents($target . '/index.html');
 if ($html === false || !str_contains($html, 'ZIP Builder smoke')) {
     throw new RuntimeException('Client did not extract generated website');
@@ -100,6 +122,8 @@ Jekyll::Hooks.register :site, :post_read do |site|
     File.exist?(File.join(site.source, "nested", ".git"))
   abort "Other hidden files were excluded" unless File.file?(File.join(site.source, ".gitignore"))
   site.config["git_metadata_verified"] = "git-metadata-verified"
+  warn "Warning: preview smoke warning"
+  warn "Warning: #{'x' * 5000}"
 end
 RUBY);
 $gitTarget = $directory . '/git-published';
@@ -107,6 +131,11 @@ try {
     $client->build($gitProject, $gitTarget);
 } catch (JekyllBuilderBuildException $exception) {
     throw new RuntimeException('Git metadata regression build failed: ' . $exception->stderr, 0, $exception);
+}
+$debug = $client->getDebugInfo();
+if (!in_array('Warning: preview smoke warning', $debug['warnings'], true)
+    || $debug['truncated'] !== true || strlen(json_encode($debug, JSON_THROW_ON_ERROR)) > 3072) {
+    throw new RuntimeException('Warnings were lost or not bounded');
 }
 $html = file_get_contents($gitTarget . '/index.html');
 if ($html === false || !str_contains($html, 'git-metadata-verified')) {
@@ -126,11 +155,24 @@ try {
     $client->build(__DIR__ . '/fixtures/broken', $directory . '/broken-output');
     throw new RuntimeException('Expected a typed Jekyll build error');
 } catch (JekyllBuilderBuildException $exception) {
+    $timing = $client->getTimingInfo();
+    if (!is_int($timing['jekyll'] ?? null) || $timing['jekyll'] < 0) {
+        throw new RuntimeException('Client lost timing on a failed build', 0, $exception);
+    }
     if ($exception->sourceFile !== 'index.html'
         || $exception->sourceLine !== 3
         || !str_contains((string) $exception->cause, 'Unknown tag')
         || !str_contains((string) $exception->excerpt, 'definitely_not_a_liquid_tag')) {
         throw new RuntimeException('Client lost Jekyll build diagnostics', 0, $exception);
+    }
+}
+
+try {
+    $client->buildZip($directory . '/invalid.zip');
+    throw new RuntimeException('Expected rejection of an invalid ZIP');
+} catch (JekyllBuilderBuildException $exception) {
+    if ($client->getDebugInfo() !== ['timingInfo' => [], 'warnings' => [], 'truncated' => false]) {
+        throw new RuntimeException('Client retained stale debug metadata', 0, $exception);
     }
 }
 
