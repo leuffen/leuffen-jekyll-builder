@@ -20,6 +20,31 @@ final class JekyllBuildService
     private const MAX_ENTRIES = 10000;
     private const MAX_OUTPUT = 100 * 1024 * 1024;
     private const BUILD_TIMEOUT = 120;
+    private const DEBUG_INFO_MAX_BYTES = 3072;
+
+    /** @var array<string, int> */
+    private array $timingInfo = [];
+    /** @var list<string> */
+    private array $warnings = [];
+    private bool $warningsTruncated = false;
+
+    /**
+     * Returns the bounded HTTP debug metadata for the current build.
+     *
+     * Process durations are in milliseconds; warnings contain individual
+     * Jekyll warning lines. A truncated flag signals omitted diagnostics.
+     * @return array{timingInfo: object, warnings: list<string>, truncated: bool}
+     * @example $debug = $service->getDebugInfo();
+     * @see self::buildFromRequest()
+     */
+    public function getDebugInfo(): array
+    {
+        return [
+            'timingInfo' => (object) $this->timingInfo,
+            'warnings' => $this->warnings,
+            'truncated' => $this->warningsTruncated,
+        ];
+    }
 
     /**
      * Builds an uploaded Jekyll project and returns a temporary ZIP path.
@@ -34,6 +59,10 @@ final class JekyllBuildService
      */
     public function buildFromRequest(): string
     {
+        $this->timingInfo = [];
+        $this->warnings = [];
+        $this->warningsTruncated = false;
+
         // Den angeforderten Kompressionsgrad vor dem Build validieren.
         $requestedLevel = $_GET['compressionLevel'] ?? '2';
         if (!is_string($requestedLevel) || preg_match('/\A[0-9]\z/', $requestedLevel) !== 1) {
@@ -137,6 +166,7 @@ final class JekyllBuildService
                 'jekyll', 'build', '--source', $source, '--destination', $target,
             ];
             $pipes = [];
+            $processStarted = hrtime(true);
             $process = proc_open($command, [
                 0 => ['file', '/dev/null', 'r'],
                 1 => ['file', $stdoutFile, 'w'],
@@ -148,8 +178,11 @@ final class JekyllBuildService
                 throw new BuildException('Cannot start Jekyll', 500);
             }
             $exitCode = proc_close($process);
+            $this->timingInfo['jekyll'] = (int) ((hrtime(true) - $processStarted) / 1000000);
             $stdout = substr((string) @file_get_contents($stdoutFile), 0, 65536);
             $stderr = substr((string) @file_get_contents($stderrFile), 0, 65536);
+            $this->collectWarnings($stdout, $source);
+            $this->collectWarnings($stderr, $source);
             if ($exitCode !== 0) {
                 $diagnostic = (new JekyllErrorAnalyzer())->analyze($stderr, $stdout, $source);
                 throw new BuildException(
@@ -217,6 +250,31 @@ final class JekyllBuildService
             return $result;
         } finally {
             $this->deleteDirectory($root);
+        }
+    }
+
+    private function collectWarnings(string $output, string $source): void
+    {
+        if (strlen($output) >= 65536) {
+            $this->warningsTruncated = true;
+        }
+
+        // Nur explizite Warnzeilen übernehmen, keine vollständigen Prozesslogs.
+        foreach (preg_split('/\R/', $output) as $line) {
+            if (!preg_match('/^\s*(?:(?:[a-z -]+ )?warning|warn|deprecation)\s*:/i', $line)) {
+                continue;
+            }
+            $warning = trim(str_replace($source . '/', '', $line));
+            $candidate = $this->getDebugInfo();
+            $candidate['warnings'][] = $warning;
+            $candidate['truncated'] = false;
+
+            // Das vollständige serialisierte JSON begrenzen, nicht einzelne Zeichen.
+            if (strlen(json_encode($candidate, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)) > self::DEBUG_INFO_MAX_BYTES) {
+                $this->warningsTruncated = true;
+                continue;
+            }
+            $this->warnings[] = $warning;
         }
     }
 

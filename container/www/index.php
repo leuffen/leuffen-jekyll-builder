@@ -18,9 +18,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || parse_url($_SERVER['REQUEST
     exit;
 }
 
+$service = new JekyllBuildService();
 try {
-    $service = new JekyllBuildService();
-    $archive = $service->buildFromRequest();
+    try {
+        $archive = $service->buildFromRequest();
+    } finally {
+        header('X-Debug-Info: ' . json_encode($service->getDebugInfo(), JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
+    }
     header('Content-Type: application/zip');
     header('Content-Disposition: attachment; filename="site.zip"');
     header('Content-Length: ' . filesize($archive));

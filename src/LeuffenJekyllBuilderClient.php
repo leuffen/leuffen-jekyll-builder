@@ -21,9 +21,40 @@ require_once __DIR__ . '/Exception/JekyllBuilderConnectionException.php';
 final class LeuffenJekyllBuilderClient
 {
     private int $compressionLevel = 2;
+    private array $debugInfo = ['timingInfo' => [], 'warnings' => [], 'truncated' => false];
 
     public function __construct(private readonly string $baseUrl = 'http://jekyll-builder')
     {
+    }
+
+    /**
+     * Returns process durations from the most recent build attempt.
+     *
+     * Values are milliseconds, indexed by process name (e.g. jekyll).
+     * Timing remains available after a remote build exception and is reset
+     * before each new attempt. An empty array means no timing was received.
+     * @return array<string, int> Process name to duration in milliseconds.
+     * @example $milliseconds = $client->getTimingInfo()['jekyll'] ?? null;
+     * @see self::getDebugInfo()
+     */
+    public function getTimingInfo(): array
+    {
+        return $this->debugInfo['timingInfo'];
+    }
+
+    /**
+     * Returns debug metadata from the latest build response, including failures.
+     *
+     * The data contains process durations, warning lines and a truncation flag.
+     * Missing or invalid metadata does not change the build result. Each new
+     * attempt resets the data; do not interpret absent timing as zero duration.
+     * @return array{timingInfo: array<string, int>, warnings: list<string>, truncated: bool}
+     * @example $warnings = $client->getDebugInfo()['warnings'];
+     * @see self::buildZip()
+     */
+    public function getDebugInfo(): array
+    {
+        return $this->debugInfo;
     }
 
     /**
@@ -70,6 +101,7 @@ final class LeuffenJekyllBuilderClient
      */
     public function build(string $directory, string $targetDirectory): void
     {
+        $this->debugInfo = ['timingInfo' => [], 'warnings' => [], 'truncated' => false];
         $root = realpath($directory);
         if ($root === false || !is_dir($root) || !is_readable($root)) {
             throw new InvalidArgumentException('Cannot read project directory: ' . $directory);
@@ -143,6 +175,7 @@ final class LeuffenJekyllBuilderClient
      */
     public function buildZip(string $zipFile): string
     {
+        $this->debugInfo = ['timingInfo' => [], 'warnings' => [], 'truncated' => false];
         $body = @file_get_contents($zipFile);
         if ($body === false) {
             throw new InvalidArgumentException('Cannot read ZIP archive: ' . $zipFile);
@@ -162,6 +195,8 @@ final class LeuffenJekyllBuilderClient
             );
         }
 
+        // Debug-Daten auch bei HTTP-Fehlern vor dem Auslösen einer Exception lesen.
+        $this->readDebugInfo($response->getHeader('X-Debug-Info', '{}'));
         $status = $response->getHttpStatus();
         if ($status === 200) {
             if ($response->getContentType() !== 'application/zip') {
@@ -189,6 +224,29 @@ final class LeuffenJekyllBuilderClient
             (string) ($error['stderr'] ?? ''),
         );
     }
+    private function readDebugInfo(string $header): void
+    {
+        $info = json_decode($header, true);
+        if (!is_array($info)) {
+            return;
+        }
+        if (is_array($info['timingInfo'] ?? null)) {
+            foreach ($info['timingInfo'] as $process => $milliseconds) {
+                if (is_string($process) && is_int($milliseconds) && $milliseconds >= 0) {
+                    $this->debugInfo['timingInfo'][$process] = $milliseconds;
+                }
+            }
+        }
+        if (is_array($info['warnings'] ?? null)) {
+            foreach ($info['warnings'] as $warning) {
+                if (is_string($warning)) {
+                    $this->debugInfo['warnings'][] = $warning;
+                }
+            }
+        }
+        $this->debugInfo['truncated'] = ($info['truncated'] ?? false) === true;
+    }
+
     /**
      * Extracts a build result without following ZIP symlinks or parent paths.
      *
