@@ -82,6 +82,37 @@ if ($html === false || !str_contains($html, 'ZIP Builder smoke')) {
     throw new RuntimeException('Client did not extract generated website');
 }
 
+// Prüft die entpackten ZIP-Quellen vor dem Rendering und weist den Hook nach.
+$gitProject = $directory . '/git-project';
+mkdir($gitProject . '/.git', 0700, true);
+mkdir($gitProject . '/nested');
+mkdir($gitProject . '/_plugins');
+copy(__DIR__ . '/fixtures/site/_config.yml', $gitProject . '/_config.yml');
+copy(__DIR__ . '/fixtures/site/index.html', $gitProject . '/index.html');
+file_put_contents($gitProject . '/index.html', "\n{{ site.git_metadata_verified }}\n", FILE_APPEND);
+file_put_contents($gitProject . '/.git/config', 'private metadata');
+symlink('config', $gitProject . '/.git/link');
+file_put_contents($gitProject . '/nested/.git', 'gitdir: elsewhere');
+file_put_contents($gitProject . '/.gitignore', 'ignored.txt');
+file_put_contents($gitProject . '/_plugins/check_git.rb', <<<'RUBY'
+Jekyll::Hooks.register :site, :post_read do |site|
+  abort "Git metadata was uploaded" if File.exist?(File.join(site.source, ".git")) ||
+    File.exist?(File.join(site.source, "nested", ".git"))
+  abort "Other hidden files were excluded" unless File.file?(File.join(site.source, ".gitignore"))
+  site.config["git_metadata_verified"] = "git-metadata-verified"
+end
+RUBY);
+$gitTarget = $directory . '/git-published';
+try {
+    $client->build($gitProject, $gitTarget);
+} catch (JekyllBuilderBuildException $exception) {
+    throw new RuntimeException('Git metadata regression build failed: ' . $exception->stderr, 0, $exception);
+}
+$html = file_get_contents($gitTarget . '/index.html');
+if ($html === false || !str_contains($html, 'git-metadata-verified')) {
+    throw new RuntimeException('Expected successful build with verified Git metadata exclusion');
+}
+
 try {
     $client->build(__DIR__ . '/fixtures/site', $target);
     throw new RuntimeException('Expected refusal of a nonempty target directory');

@@ -8,6 +8,7 @@ use FilesystemIterator;
 use InvalidArgumentException;
 use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderBuildException;
 use Leuffen\JekyllBuilder\Client\Exception\JekyllBuilderConnectionException;
+use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -26,7 +27,8 @@ final class LeuffenJekyllBuilderClient
     /**
      * Packs a complete Jekyll project directory and builds it remotely.
      *
-     * Hidden files and nested directories are included. Symlinks are rejected.
+     * Entries named .git are excluded at every depth, including worktree files.
+     * Other hidden files and nested directories are included. Symlinks are rejected.
      * Extracts the returned website ZIP into a new or empty target directory.
      * Existing files in the target are never overwritten.
      *
@@ -60,9 +62,13 @@ final class LeuffenJekyllBuilderClient
             }
 
             try {
-                // Zip the directory contents, not the containing directory.
-                $iterator = new RecursiveIteratorIterator(
+                // Git-Metadaten vor der Rekursion ausschließen; übrige Inhalte packen.
+                $filtered = new RecursiveCallbackFilterIterator(
                     new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+                    static fn (\SplFileInfo $entry): bool => $entry->getFilename() !== '.git',
+                );
+                $iterator = new RecursiveIteratorIterator(
+                    $filtered,
                     RecursiveIteratorIterator::SELF_FIRST,
                 );
                 foreach ($iterator as $entry) {

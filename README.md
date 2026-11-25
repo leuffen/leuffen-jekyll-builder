@@ -125,9 +125,11 @@ try {
 ```
 
 `build($sourceDir, $targetDir)` archives the contents of the source directory
-and extracts the generated website into the target directory. The target must
-be new or empty; existing files are not overwritten. `buildZip()` remains
-available for callers who already have an input ZIP. Build failures expose `httpStatus`, `exitCode`,
+and extracts the generated website into the target directory. Entries named
+`.git` (directories or worktree files) are excluded at every depth; other
+hidden files are included. The target must be new or empty; existing files are
+not overwritten. `buildZip()` remains available for callers who already have
+an input ZIP and sends that ZIP unchanged. Build failures expose `httpStatus`, `exitCode`,
 `sourceFile` (relative to the upload ZIP), `sourceLine`, `cause`,
 `excerpt`, `stdout` and `stderr`. If the source cannot be
 identified, the corresponding fields are `null`.
