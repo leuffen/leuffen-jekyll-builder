@@ -20,8 +20,33 @@ require_once __DIR__ . '/Exception/JekyllBuilderConnectionException.php';
 
 final class LeuffenJekyllBuilderClient
 {
+    private int $compressionLevel = 2;
+
     public function __construct(private readonly string $baseUrl = 'http://jekyll-builder')
     {
+    }
+
+    /**
+     * Sets the ZIP compression level for subsequent builds, in both directions.
+     *
+     * Level 0 stores files without compression; levels 1–9 use DEFLATE.
+     * The default is 2. Existing input archives passed to buildZip() are
+     * not recompressed; the setting still controls the returned ZIP.
+     *
+     * @param int $level Compression level from 0 to 9.
+     * @return void
+     * @throws InvalidArgumentException If the level is outside 0–9.
+     * @see self::build()
+     * @see self::buildZip()
+     * @example $client->setCompressionLevel(1);
+     */
+    public function setCompressionLevel(int $level): void
+    {
+        if ($level < 0 || $level > 9) {
+            throw new InvalidArgumentException('ZIP compression level must be between 0 and 9');
+        }
+
+        $this->compressionLevel = $level;
     }
 
     /**
@@ -71,6 +96,7 @@ final class LeuffenJekyllBuilderClient
                     $filtered,
                     RecursiveIteratorIterator::SELF_FIRST,
                 );
+                $method = $this->compressionLevel === 0 ? ZipArchive::CM_STORE : ZipArchive::CM_DEFLATE;
                 foreach ($iterator as $entry) {
                     if ($entry->isLink()) {
                         throw new InvalidArgumentException('Project contains a symbolic link: ' . $entry->getPathname());
@@ -84,7 +110,7 @@ final class LeuffenJekyllBuilderClient
                         if (!$zip->addFile($path, $relative)) {
                             throw new RuntimeException('Cannot add project file to ZIP: ' . $path);
                         }
-                        if (!$zip->setCompressionName($relative, ZipArchive::CM_DEFLATE, 1)) {
+                        if (!$zip->setCompressionName($relative, $method, $this->compressionLevel)) {
                             throw new RuntimeException('Cannot set ZIP compression for project file: ' . $path);
                         }
                     }
@@ -123,7 +149,7 @@ final class LeuffenJekyllBuilderClient
         }
 
         try {
-            $response = \phore_http_request(rtrim($this->baseUrl, '/') . '/build')
+            $response = \phore_http_request(rtrim($this->baseUrl, '/') . '/build?compressionLevel=' . $this->compressionLevel)
                 ->withBody($body)
                 ->withHeader('Content-Type', 'application/zip')
                 ->withTimeout(5, 180)

@@ -34,6 +34,14 @@ final class JekyllBuildService
      */
     public function buildFromRequest(): string
     {
+        // Den angeforderten Kompressionsgrad vor dem Build validieren.
+        $requestedLevel = $_GET['compressionLevel'] ?? '2';
+        if (!is_string($requestedLevel) || preg_match('/\A[0-9]\z/', $requestedLevel) !== 1) {
+            throw new BuildException('ZIP compression level must be between 0 and 9', 400);
+        }
+        $compressionLevel = (int) $requestedLevel;
+        $method = $compressionLevel === 0 ? ZipArchive::CM_STORE : ZipArchive::CM_DEFLATE;
+
         $root = sys_get_temp_dir() . '/jekyll-builder-' . bin2hex(random_bytes(16));
         if (!mkdir($root, 0700) && !is_dir($root)) {
             throw new BuildException('Cannot create temporary build directory', 500);
@@ -188,7 +196,7 @@ final class JekyllBuildService
                     if (!$archive->addFile($item->getPathname(), $name)) {
                         throw new BuildException('Cannot archive build output', 500);
                     }
-                    if (!$archive->setCompressionName($name, ZipArchive::CM_DEFLATE, 1)) {
+                    if (!$archive->setCompressionName($name, $method, $compressionLevel)) {
                         throw new BuildException('Cannot set ZIP compression for build output: ' . $name, 500);
                     }
                 }
