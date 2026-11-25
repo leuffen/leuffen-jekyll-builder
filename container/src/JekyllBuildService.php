@@ -188,6 +188,9 @@ final class JekyllBuildService
                     if (!$archive->addFile($item->getPathname(), $name)) {
                         throw new BuildException('Cannot archive build output', 500);
                     }
+                    if (!$archive->setCompressionName($name, ZipArchive::CM_DEFLATE, 1)) {
+                        throw new BuildException('Cannot set ZIP compression for build output: ' . $name, 500);
+                    }
                 }
             } finally {
                 $archive->close();
