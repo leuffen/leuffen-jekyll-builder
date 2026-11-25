@@ -80,8 +80,13 @@ final class LeuffenJekyllBuilderClient
                     $relative = str_replace(DIRECTORY_SEPARATOR, '/', substr($path, strlen($root) + 1));
                     if ($entry->isDir()) {
                         $zip->addEmptyDir($relative);
-                    } elseif ($entry->isFile() && !$zip->addFile($path, $relative)) {
-                        throw new RuntimeException('Cannot add project file to ZIP: ' . $path);
+                    } elseif ($entry->isFile()) {
+                        if (!$zip->addFile($path, $relative)) {
+                            throw new RuntimeException('Cannot add project file to ZIP: ' . $path);
+                        }
+                        if (!$zip->setCompressionName($relative, ZipArchive::CM_DEFLATE, 1)) {
+                            throw new RuntimeException('Cannot set ZIP compression for project file: ' . $path);
+                        }
                     }
                 }
             } finally {
