@@ -45,15 +45,23 @@ Build responses include an `X-Debug-Info` header containing a JSON object:
 ```
 
 Process times are elapsed milliseconds, including failed Jekyll executions.
-The container preloads Ruby and Jekyll once at startup. Each request uses a
+The build backend is selected with the container environment variable
+`JEKYLL_BUILD_MODE`: `fork` (default) uses `JekyllBuildServiceFork.php`,
+while `command` uses the original CLI implementation in
+`JekyllBuildService.php` and does not start the preloader. Both share the
+same ZIP handling, error diagnostics and HTTP API. Restart the container
+after changing the mode; there is no automatic fallback.
+
+In fork mode the container preloads Ruby and Jekyll once at startup. Each request uses a
 fresh forked build child, preserving the temporary workspace and plugin
 isolation; the HTTP API and client are unchanged. The local Unix socket is
 restricted to the Apache service account. Up to 16 requests run concurrently;
 additional requests receive an internal service error instead of waiting.
 
 `jekyll` remains the total elapsed build request time. Additional timings
-include `jekyllWorkerStartup`, `jekyllConfig`, `jekyllSetup`, `jekyllRead`,
+in fork mode include `jekyllWorkerStartup`, `jekyllConfig`, `jekyllSetup`, `jekyllRead`,
 `jekyllGenerate`, `jekyllRender`, `jekyllCleanup`, `jekyllWrite`, `zipExtract`
+and `zipCreate`. The command backend reports only `jekyll`, `zipExtract`
 and `zipCreate`. Phase timings are reported only when measured, and nested
 phases are included in the total rather than added to it. The one-time
 preload is not included in individual builds. A failed build may only contain
