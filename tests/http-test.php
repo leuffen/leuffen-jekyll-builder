@@ -92,6 +92,13 @@ if ($error['file'] !== 'index.html' || $error['line'] !== 3
     throw new RuntimeException('Missing structured Jekyll diagnostic: ' . $failure->getBody());
 }
 
+if ($mode === 'fork' && ($error['errorType'] ?? null) !== 'Liquid::SyntaxError') {
+    throw new RuntimeException('Missing native Liquid exception type');
+}
+if ($mode === 'command' && ($error['errorType'] ?? null) !== null) {
+    throw new RuntimeException('Unexpected native error type in command mode');
+}
+
 $invalid = $send($directory . '/invalid.zip');
 if ($invalid->getHttpStatus() !== 400 || $invalid->getContentType() !== 'application/json') {
     throw new RuntimeException('Expected HTTP 400 JSON: ' . $invalid->getBody());
@@ -210,6 +217,46 @@ try {
 } catch (JekyllBuilderConnectionException $exception) {
     if (!str_contains($exception->getMessage(), 'not available')) {
         throw new RuntimeException('Unexpected connection exception', 0, $exception);
+    }
+}
+
+if ($mode === 'fork') {
+    // Ein Include muss statt der aufrufenden Seite als Fehlerquelle erscheinen.
+    $includeProject = $directory . '/include-error';
+    mkdir($includeProject . '/_includes', 0700, true);
+    copy(__DIR__ . '/fixtures/site/_config.yml', $includeProject . '/_config.yml');
+    file_put_contents($includeProject . '/index.html', "---\n---\n{% include bad.html %}\n");
+    file_put_contents($includeProject . '/_includes/bad.html', "before\n{% unknown_include_tag %}\nafter\n");
+    try {
+        $client->build($includeProject, $directory . '/include-error-output');
+        throw new RuntimeException('Expected include build failure');
+    } catch (JekyllBuilderBuildException $exception) {
+        if ($exception->errorType !== 'Liquid::SyntaxError'
+            || $exception->sourceFile !== '_includes/bad.html'
+            || $exception->sourceLine !== 2
+            || !str_contains((string) $exception->cause, 'unknown_include_tag')
+            || !str_contains((string) $exception->excerpt, '> 2 |')) {
+            throw new RuntimeException('Incorrect native include diagnostic: ' . $exception->stderr, 0, $exception);
+        }
+    }
+
+    // Ruby-Plugin-Fehler haben eine native Backtrace-Position.
+    $pluginProject = $directory . '/plugin-error';
+    mkdir($pluginProject . '/_plugins', 0700, true);
+    copy(__DIR__ . '/fixtures/site/_config.yml', $pluginProject . '/_config.yml');
+    copy(__DIR__ . '/fixtures/site/index.html', $pluginProject . '/index.html');
+    file_put_contents($pluginProject . '/_plugins/bad.rb', "Jekyll::Hooks.register :site, :post_read do |site|\n  raise 'plugin diagnostic smoke'\nend\n");
+    try {
+        $client->build($pluginProject, $directory . '/plugin-error-output');
+        throw new RuntimeException('Expected plugin build failure');
+    } catch (JekyllBuilderBuildException $exception) {
+        if ($exception->errorType !== 'RuntimeError'
+            || $exception->sourceFile !== '_plugins/bad.rb'
+            || $exception->sourceLine !== 2
+            || $exception->cause !== 'plugin diagnostic smoke'
+            || !str_contains((string) $exception->excerpt, '> 2 |')) {
+            throw new RuntimeException('Incorrect native plugin diagnostic: ' . $exception->stderr, 0, $exception);
+        }
     }
 }
 
