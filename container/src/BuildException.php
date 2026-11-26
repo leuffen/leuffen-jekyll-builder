@@ -18,6 +18,8 @@ final class BuildException extends RuntimeException
         public readonly ?int $sourceLine = null,
         public readonly ?string $excerpt = null,
         public readonly ?string $cause = null,
+        public readonly ?string $errorType = null,
+        public readonly ?int $sourceColumn = null,
     ) {
         parent::__construct($message);
     }

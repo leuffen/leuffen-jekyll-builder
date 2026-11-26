@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Leuffen\JekyllBuilder;
 
-final class JekyllErrorAnalyzer
+class JekyllErrorAnalyzer
 {
     /**
      * Analyzes Jekyll diagnostic output and identifies a source file in the ZIP.
@@ -89,7 +89,7 @@ final class JekyllErrorAnalyzer
         return $diagnostic;
     }
 
-    private function findLine(string $message, string $sourceFile, string $relativeFile): ?int
+    protected function findLine(string $message, string $sourceFile, string $relativeFile): ?int
     {
         // If Jekyll names an unknown Liquid tag but not a line, locate its
         // unique occurrence in the source. Multiple matches are ambiguous.
@@ -124,7 +124,7 @@ final class JekyllErrorAnalyzer
         return null;
     }
 
-    private function sourceExcerpt(string $sourceFile, int $line): ?string
+    protected function sourceExcerpt(string $sourceFile, int $line): ?string
     {
         if ($line < 1 || filesize($sourceFile) > 1024 * 1024) {
             return null;

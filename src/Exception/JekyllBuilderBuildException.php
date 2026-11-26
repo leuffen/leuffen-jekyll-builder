@@ -18,6 +18,8 @@ final class JekyllBuilderBuildException extends RuntimeException
         public readonly ?string $excerpt = null,
         public readonly string $stdout = '',
         public readonly string $stderr = '',
+        public readonly ?string $errorType = null,
+        public readonly ?int $sourceColumn = null,
     ) {
         parent::__construct($message, $exitCode);
     }

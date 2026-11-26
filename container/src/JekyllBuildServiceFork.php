@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Leuffen\JekyllBuilder;
 
 require_once __DIR__ . '/JekyllBuildService.php';
+require_once __DIR__ . '/JekyllErrorAnalyzerFork.php';
 
 final class JekyllBuildServiceFork extends JekyllBuildService
 {
+    protected function errorAnalyzer(): JekyllErrorAnalyzer
+    {
+        return new JekyllErrorAnalyzerFork();
+    }
+
     protected function runBuild(string $root): int
     {
         try {

@@ -222,6 +222,8 @@ final class LeuffenJekyllBuilderClient
             is_string($error['excerpt'] ?? null) ? $error['excerpt'] : null,
             (string) ($error['stdout'] ?? ''),
             (string) ($error['stderr'] ?? ''),
+            is_string($error['errorType'] ?? null) ? $error['errorType'] : null,
+            is_int($error['column'] ?? null) ? $error['column'] : null,
         );
     }
     private function readDebugInfo(string $header): void
