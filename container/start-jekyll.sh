@@ -4,14 +4,14 @@
     set -e
     . /etc/apache2/envvars
     install -d -m 0700 -o "$APACHE_RUN_USER" -g "$APACHE_RUN_GROUP" /run/jekyll-builder
-    rm -f /run/jekyll-builder/build.sock
+    rm -f /run/jekyll-builder/build.sock /run/jekyll-builder/preloader.pid
 
     start-stop-daemon --start --background --make-pidfile \
         --pidfile /run/jekyll-builder/preloader.pid \
         --chuid "$APACHE_RUN_USER:$APACHE_RUN_GROUP" \
-        --startas /usr/bin/env -- -i PATH=/usr/bin:/bin \
+        --startas /usr/bin/env -- -i PATH="$PATH" \
         HOME=/run/jekyll-builder JEKYLL_NO_BUNDLER_REQUIRE=true \
-        JEKYLL_ENV="{JEKYLL_ENV:-production}" \
+        JEKYLL_ENV="${JEKYLL_ENV:-production}" \
         /usr/bin/ruby /opt/src/jekyll-preloader.rb
 
     for ((i=0; i<300; i++)); do
