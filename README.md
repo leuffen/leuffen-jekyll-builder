@@ -36,7 +36,8 @@ the enclosing directory.
 - **200**: `application/zip`, containing the generated HTML and assets.
 - **400/413**: `application/json`, invalid or oversized ZIP.
 - **422**: `application/json`, failed/timed-out Jekyll build with `error`,
-  `exitCode`, `stdout`, `stderr`, `file`, `line`, `excerpt` and `cause`.
+  `exitCode`, `stdout`, `stderr`, `file`, `line`, `excerpt`, `cause`,
+  `errorType` and `column`.
 
 Build responses include an `X-Debug-Info` header containing a JSON object:
 
@@ -84,6 +85,17 @@ Example of a failed Jekyll build (HTTP `422`, `application/json`):
   "excerpt": "  1 | ---\n  2 | ---\n> 3 | {% definitely_not_a_liquid_tag %}"
 }
 ```
+
+In fork mode, the builder extracts diagnostic information from the original
+Ruby exception before the process exits. The optional `errorType` field contains
+the Ruby exception class (such as `Liquid::SyntaxError` or `Psych::SyntaxError`);
+`cause` contains the native message, and `file`, `line` and `column` identify the
+source location when available. Line and column numbers are one-based. Includes
+and layouts are attributed to their actual source file when identified; Liquid
+line numbers are translated past front matter when the offset is known.
+Unknown locations remain `null`. If no native diagnostic is available (for
+example on timeout), the existing log analyzer is used. Command mode continues
+to use that analyzer; `errorType` and `column` are `null` there.
 
 `stdout` and `stderr` contain the captured Jekyll output; their exact
 contents depend on the project and the underlying Jekyll version. `file` is
@@ -169,8 +181,9 @@ an input ZIP and sends that ZIP unchanged. The client defaults to compression
 level 2 for both directions. Call `$client->setCompressionLevel(1)` before a
 build to use level 1 for generated uploads and request level 1 for the result.
 For existing input ZIPs, the setting affects only the result. Build failures expose `httpStatus`, `exitCode`,
-`sourceFile` (relative to the upload ZIP), `sourceLine`, `cause`,
-`excerpt`, `stdout` and `stderr`. If the source cannot be
+`sourceFile` (relative to the upload ZIP), `sourceLine`, `sourceColumn`,
+`errorType`, `cause`, `excerpt`, `stdout` and `stderr`. The two new optional
+properties are `null` when an older server does not return them. If the source cannot be
 identified, the corresponding fields are `null`.
 
 After `build()` or `buildZip()`, `$client->getTimingInfo()` returns process
