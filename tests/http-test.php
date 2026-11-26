@@ -260,4 +260,19 @@ if ($mode === 'fork') {
     }
 }
 
+// Modern Sass and the explicitly enabled Polyglot plugin must work in both modes.
+$localizedTarget = $directory . '/localized-published';
+$client->build(__DIR__ . '/fixtures/polyglot', $localizedTarget);
+foreach (['index.html' => 'language-en', 'de/index.html' => 'language-de'] as $file => $expected) {
+    $html = file_get_contents($localizedTarget . '/' . $file);
+    if ($html === false || !str_contains($html, $expected)) {
+        throw new RuntimeException('Missing localized output: ' . $file);
+    }
+}
+$css = file_get_contents($localizedTarget . '/assets/style.css');
+if ($css === false || preg_match('/color:\s*#123456\b/i', $css) !== 1
+    || !str_contains($css, '.sass-smoke') || str_contains($css, '@use')) {
+    throw new RuntimeException('Dart Sass did not compile the SCSS module');
+}
+
 echo "Jekyll Builder PHP client cases passed\n";

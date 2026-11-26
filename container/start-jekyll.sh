@@ -16,6 +16,7 @@
         --chuid "$APACHE_RUN_USER:$APACHE_RUN_GROUP" \
         --startas /usr/bin/env -- -i PATH="$PATH" \
         HOME=/run/jekyll-builder JEKYLL_NO_BUNDLER_REQUIRE=true \
+        GEM_HOME=/opt/jekyll-gems GEM_PATH=/opt/jekyll-gems \
         JEKYLL_ENV="${JEKYLL_ENV:-production}" \
         /usr/bin/ruby /opt/src/jekyll-preloader.rb
 

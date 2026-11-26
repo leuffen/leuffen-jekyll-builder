@@ -1,0 +1,10 @@
+title: Polyglot and Sass smoke
+url: https://example.test
+languages: [en, de]
+default_lang: en
+exclude_from_localization: [assets]
+parallel_localization: false
+plugins:
+  - jekyll-polyglot
+sass:
+  sourcemap: never
