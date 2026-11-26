@@ -2,6 +2,11 @@
 # Sourced by Kickstart after configuration has been written.
 (
     set -e
+    case "${JEKYLL_BUILD_MODE:-fork}" in
+        command) exit 0 ;;
+        fork) ;;
+        *) echo "Invalid JEKYLL_BUILD_MODE" >&2; exit 1 ;;
+    esac
     . /etc/apache2/envvars
     install -d -m 0700 -o "$APACHE_RUN_USER" -g "$APACHE_RUN_GROUP" /run/jekyll-builder
     rm -f /run/jekyll-builder/build.sock /run/jekyll-builder/preloader.pid
