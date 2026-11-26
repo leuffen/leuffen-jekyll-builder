@@ -40,6 +40,13 @@ if (strlen($debugHeader) > 3072 || !is_int($debug['timingInfo']['jekyll'] ?? nul
     || !is_bool($debug['truncated'] ?? null)) {
     throw new RuntimeException('Invalid HTTP debug metadata');
 }
+foreach (['zipExtract', 'jekyllWorkerStartup', 'jekyllConfig', 'jekyllSetup', 'jekyllRead',
+    'jekyllGenerate', 'jekyllRender', 'jekyllCleanup', 'jekyllWrite', 'zipCreate'] as $phase) {
+    if (!is_int($debug['timingInfo'][$phase] ?? null) || $debug['timingInfo'][$phase] < 0) {
+        throw new RuntimeException('Missing build timing: ' . $phase);
+    }
+}
+echo 'First build timings (ms): ' . json_encode($debug['timingInfo'], JSON_THROW_ON_ERROR) . "\n";
 
 $zipPath = $directory . '/output.zip';
 file_put_contents($zipPath, $success->getBody());
@@ -141,6 +148,14 @@ $html = file_get_contents($gitTarget . '/index.html');
 if ($html === false || !str_contains($html, 'git-metadata-verified')) {
     throw new RuntimeException('Expected successful build with verified Git metadata exclusion');
 }
+
+// Ein neuer Build darf weder Hooks noch Warnungen des vorherigen Projekts übernehmen.
+$client->build(__DIR__ . '/fixtures/site', $directory . '/warm-published');
+$warmDebug = $client->getDebugInfo();
+if ($warmDebug['warnings'] !== []) {
+    throw new RuntimeException('Project plugin warnings leaked into a later build');
+}
+echo 'Warm build timings (ms): ' . json_encode($warmDebug['timingInfo'], JSON_THROW_ON_ERROR) . "\n";
 
 try {
     $client->build(__DIR__ . '/fixtures/site', $target);
