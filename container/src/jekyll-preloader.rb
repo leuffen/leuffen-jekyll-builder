@@ -4,6 +4,7 @@ require "socket"
 require "json"
 require "timeout"
 require "jekyll"
+require_relative "jekyll-error-analyzer"
 
 SOCKET_PATH = "/run/jekyll-builder/build.sock"
 BUILD_TIMEOUT = 120
@@ -56,6 +57,7 @@ def build(root, started)
 
   timings = { "jekyllWorkerStartup" => ((monotonic - started) * 1000).to_i }
   instrument(timings, File.join(root, "timing.json"))
+  JekyllForkErrorAnalyzer.install
 
   # Use Jekyll's normal build command, including plugins and error handling.
   Jekyll::Commands::Build.process(
@@ -69,6 +71,13 @@ rescue SystemExit => error
   error.status
 rescue StandardError, ScriptError => error
   warn error.full_message(highlight: false)
+  begin
+    diagnostic = JekyllForkErrorAnalyzer.new(File.join(root, "source")).analyze(error)
+    File.write(File.join(root, "diagnostic.json"), JSON.generate(diagnostic))
+  rescue StandardError => diagnostic_error
+    # Diagnostics must never replace the original build failure.
+    warn "Could not extract structured diagnostic: #{diagnostic_error.message}"
+  end
   1
 end
 
