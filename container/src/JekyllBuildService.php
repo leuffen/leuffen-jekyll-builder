@@ -113,6 +113,7 @@ final class JekyllBuildService
             fclose($stream);
             fclose($destination);
 
+            $extractStarted = hrtime(true);
             $zip = new ZipArchive();
             if ($zip->open($input) !== true) {
                 throw new BuildException('Invalid ZIP archive');
@@ -157,28 +158,24 @@ final class JekyllBuildService
                 $zip->close();
             }
 
-            // Execute Jekyll with fixed arguments, an isolated workspace and
-            // a hard deadline; redirect output to files to avoid pipe blocking.
+            $this->timingInfo['zipExtract'] = (int) ((hrtime(true) - $extractStarted) / 1000000);
+
+            // Der vorgeladene Ruby-Prozess erzeugt pro Build einen isolierten Child.
             $stdoutFile = $root . '/stdout.log';
             $stderrFile = $root . '/stderr.log';
-            $command = [
-                'timeout', '--signal=TERM', '--kill-after=5s', self::BUILD_TIMEOUT . 's',
-                'jekyll', 'build', '--source', $source, '--destination', $target,
-            ];
-            $pipes = [];
             $processStarted = hrtime(true);
-            $process = proc_open($command, [
-                0 => ['file', '/dev/null', 'r'],
-                1 => ['file', $stdoutFile, 'w'],
-                2 => ['file', $stderrFile, 'w'],
-            ], $pipes, $root, ['PATH' => getenv('PATH') ?: '/usr/bin:/bin',
-                'HOME' => $root, 'JEKYLL_NO_BUNDLER_REQUIRE' => 'true',
-                'JEKYLL_ENV' => getenv('JEKYLL_ENV') ?: 'production']);
-            if (!is_resource($process)) {
-                throw new BuildException('Cannot start Jekyll', 500);
+            try {
+                $exitCode = $this->runPreloadedBuild($root);
+            } finally {
+                $this->timingInfo['jekyll'] = (int) ((hrtime(true) - $processStarted) / 1000000);
+                $phaseTimings = json_decode((string) @file_get_contents($root . '/timing.json'), true);
+                foreach (['jekyllWorkerStartup', 'jekyllConfig', 'jekyllSetup', 'jekyllRead',
+                    'jekyllGenerate', 'jekyllRender', 'jekyllCleanup', 'jekyllWrite'] as $phase) {
+                    if (is_int($phaseTimings[$phase] ?? null) && $phaseTimings[$phase] >= 0) {
+                        $this->timingInfo[$phase] = $phaseTimings[$phase];
+                    }
+                }
             }
-            $exitCode = proc_close($process);
-            $this->timingInfo['jekyll'] = (int) ((hrtime(true) - $processStarted) / 1000000);
             $stdout = substr((string) @file_get_contents($stdoutFile), 0, 65536);
             $stderr = substr((string) @file_get_contents($stderrFile), 0, 65536);
             $this->collectWarnings($stdout, $source);
@@ -198,6 +195,7 @@ final class JekyllBuildService
                 );
             }
 
+            $archiveStarted = hrtime(true);
             $archive = new ZipArchive();
             if ($archive->open($output, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
                 throw new BuildException('Cannot create output ZIP', 500);
@@ -237,6 +235,8 @@ final class JekyllBuildService
                 $archive->close();
             }
 
+            $this->timingInfo['zipCreate'] = (int) ((hrtime(true) - $archiveStarted) / 1000000);
+
             if (!is_file($output)) {
                 throw new BuildException('Output ZIP was not created', 500);
             }
@@ -250,6 +250,36 @@ final class JekyllBuildService
             return $result;
         } finally {
             $this->deleteDirectory($root);
+        }
+    }
+
+    private function runPreloadedBuild(string $root): int
+    {
+        $socket = @stream_socket_client('unix:///run/jekyll-builder/build.sock', $errno, $error, 5);
+        if ($socket === false) {
+            throw new BuildException('Cannot connect to Jekyll preloader: ' . $error, 500);
+        }
+
+        try {
+            // Der Ruby-Supervisor beendet den Child spätestens nach 125 Sekunden.
+            stream_set_timeout($socket, self::BUILD_TIMEOUT + 10);
+            $request = $root . "\n";
+            if (fwrite($socket, $request) !== strlen($request)) {
+                throw new BuildException('Cannot send build to Jekyll preloader', 500);
+            }
+
+            $response = fgets($socket, 4096);
+            $result = json_decode($response === false ? '' : $response, true);
+            if (!is_int($result['exitCode'] ?? null)) {
+                throw new BuildException(
+                    'Jekyll preloader failed: ' . ($result['error'] ?? 'No valid response'),
+                    500,
+                );
+            }
+
+            return $result['exitCode'];
+        } finally {
+            fclose($socket);
         }
     }
 
