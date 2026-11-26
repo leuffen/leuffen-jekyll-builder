@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 # Extract native error information while the original Ruby exception is alive.
 # Only project-relative paths are returned, never gem or container paths.
 class JekyllForkErrorAnalyzer
@@ -9,6 +11,16 @@ class JekyllForkErrorAnalyzer
 
   def analyze(error)
     context = error.instance_variable_get(:@builder_error_context) || {}
+    # Jekyll's Sass converter can wrap the original compile error in SyntaxError.
+    original = error
+    8.times do
+      break unless original.cause
+      original = original.cause
+      if ["Sass::CompileError", "SassC::SyntaxError"].include?(original.class.name)
+        error = original
+        break
+      end
+    end
     file = nil
     line = nil
     column = nil
@@ -34,12 +46,24 @@ class JekyllForkErrorAnalyzer
       end
     else
       # Sass converters expose different location APIs depending on the version.
-      if error.respond_to?(:filename)
+      if error.class.name == "Sass::CompileError" && error.span
+        span = error.span
+        file = project_file(span.url)
+        if file && span.start
+          line = span.start.line + 1
+          column = span.start.column + 1
+        end
+      elsif error.respond_to?(:filename)
         file = project_file(error.filename)
         if file
           line = error.line.to_i if error.respond_to?(:line)
           column = error.column.to_i if error.respond_to?(:column)
         end
+      end
+
+      if file && line && error.class.name.start_with?("Sass") &&
+          file == project_file(context[:path]) && context[:content]
+        line = liquid_source_line(file, context[:content], line)
       end
 
       unless file
@@ -79,10 +103,15 @@ class JekyllForkErrorAnalyzer
   def project_file(path)
     return nil unless path.is_a?(String) && !path.empty?
     # Jekyll supplies both absolute paths and paths relative to the source.
+    if path.start_with?("file://")
+      uri = URI.parse(path)
+      return nil unless uri.host.nil? || uri.host.empty? || uri.host == "localhost"
+      path = URI::DEFAULT_PARSER.unescape(uri.path)
+    end
     resolved = File.realpath(File.expand_path(path, @source))
     return nil unless resolved.start_with?(@source + "/") && File.file?(resolved)
     resolved.delete_prefix(@source + "/")
-  rescue SystemCallError, ArgumentError
+  rescue SystemCallError, ArgumentError, URI::InvalidURIError
     nil
   end
 
@@ -94,9 +123,7 @@ class JekyllForkErrorAnalyzer
     return line if raw == template
 
     # Only a verified leading front-matter block is a valid line offset.
-    match = raw.match(/\A(?:\xEF\xBB\xBF)?---[ \t]*\r?\n.*?\r?\n---[ \t]*\r?\n/mn)
-    # Empty front matter has adjacent delimiters.
-    match ||= raw.match(/\A(?:\xEF\xBB\xBF)?---[ \t]*\r?\n---[ \t]*\r?\n/n)
+    match = raw.match(/\A(?:\xEF\xBB\xBF)?---[ \t]*\r?\n.*?^---[ \t]*\r?\n/mn)
     return nil unless match && raw.byteslice(match.end(0)..) == template
     line + match[0].count("\n")
   rescue SystemCallError, ArgumentError
@@ -122,7 +149,7 @@ class JekyllForkErrorAnalyzer
       def convert(content)
         super
       rescue StandardError, ScriptError => error
-        JekyllForkErrorAnalyzer.context(error, document.path)
+        JekyllForkErrorAnalyzer.context(error, document.path, content: content)
         raise
       end
     end)
