@@ -2,9 +2,8 @@ version: 1
 from: "ghcr.io/nfra-project/kickstart-flavor-php:8.4"
 ports: "80:80"
 
-packages: [jekyll, zip, unzip, php8.5-zip,
-  ruby-jekyll-sass-converter, ruby-jekyll-optional-front-matter,
-  ruby-jekyll-sitemap, ruby-jekyll-seo-tag, ruby-jekyll-feed]
+packages: [ruby, ruby-dev, build-essential, libssl-dev, pkg-config,
+  ca-certificates, zip, unzip, php8.5-zip]
 
 command:
   build:

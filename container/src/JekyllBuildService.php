@@ -261,7 +261,8 @@ class JekyllBuildService
         $stderrFile = $root . '/stderr.log';
         $command = [
             'timeout', '--signal=TERM', '--kill-after=5s', self::BUILD_TIMEOUT . 's',
-            'jekyll', 'build', '--source', $source, '--destination', $target,
+            '/usr/bin/ruby', '/opt/jekyll-gems/bin/jekyll',
+            'build', '--source', $source, '--destination', $target,
         ];
         $pipes = [];
         $process = proc_open($command, [
@@ -270,6 +271,7 @@ class JekyllBuildService
             2 => ['file', $stderrFile, 'w'],
         ], $pipes, $root, ['PATH' => getenv('PATH') ?: '/usr/bin:/bin',
             'HOME' => $root, 'JEKYLL_NO_BUNDLER_REQUIRE' => 'true',
+            'GEM_HOME' => '/opt/jekyll-gems', 'GEM_PATH' => '/opt/jekyll-gems',
             'JEKYLL_ENV' => getenv('JEKYLL_ENV') ?: 'production']);
         if (!is_resource($process)) {
             throw new BuildException('Cannot start Jekyll', 500);

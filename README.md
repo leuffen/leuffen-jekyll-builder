@@ -23,6 +23,21 @@ Only `container/` is copied into the image under `/opt`. Composer dependencies
 for the server are declared separately in `container/composer.json`; the
 server currently requires no external Composer libraries.
 
+### Jekyll runtime
+
+Both build backends use the same isolated RubyGems installation in
+`/opt/jekyll-gems`. The Dockerfile pins the direct gem versions: Jekyll 4.4.1,
+Jekyll Sass Converter 3.1.0 (Dart Sass via `sass-embedded`), Polyglot 1.14.0,
+Optional Front Matter, Sitemap, SEO Tag and Feed. Remote Theme is deliberately
+not installed.
+
+SCSS entry files with Jekyll front matter support Sass modules (`@use` and
+`@forward`). Enable Polyglot in the uploaded project's `_config.yml` under
+`plugins` and configure its languages and default language as usual.
+The service does not install gems from uploaded projects or automatically
+load their Gemfile; only preinstalled gems and project-local Ruby plugins
+are available. The same restrictions apply to both build modes.
+
 ## HTTP API
 
 The optional query parameter `compressionLevel` controls the compression of the
