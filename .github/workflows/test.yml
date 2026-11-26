@@ -12,6 +12,12 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [command, fork]
+    env:
+      JEKYLL_BUILD_MODE: ${{ matrix.mode }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: docker/setup-buildx-action@v4.4.1
@@ -27,7 +33,7 @@ jobs:
           docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'ruby -c /opt/src/jekyll-preloader.rb && bash -n /opt/start-jekyll.sh'
       - name: Validate PHP and Apache
         run: |
-          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php && php -l /opt/src/JekyllErrorAnalyzer.php'
+          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php && php -l /opt/src/JekyllBuildServiceFork.php && php -l /opt/src/JekyllErrorAnalyzer.php'
           docker run --rm --entrypoint apache2ctl leuffen-jekyll-builder:local configtest
           docker compose -f tests/compose.yml config --quiet
       - name: Validate PHP client
