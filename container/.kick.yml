@@ -7,6 +7,7 @@ packages: [ruby, ruby-dev, build-essential, libssl-dev, pkg-config,
 
 command:
   build:
+    - "sudo bash ./install-jekyll.sh"
     - >-
       php -r 'if (!extension_loaded("zip")) { throw new RuntimeException("PHP zip extension missing"); }'
     - "sudo mkdir -p /tmp/jekyll-builder"
