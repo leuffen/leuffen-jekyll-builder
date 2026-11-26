@@ -30,10 +30,10 @@ jobs:
           tags: leuffen-jekyll-builder:local
       - name: Validate Ruby preloader
         run: |
-          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'ruby -c /opt/src/jekyll-preloader.rb && bash -n /opt/start-jekyll.sh'
+          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'ruby -c /opt/src/jekyll-preloader.rb && ruby -c /opt/src/jekyll-error-analyzer.rb && bash -n /opt/start-jekyll.sh'
       - name: Validate PHP and Apache
         run: |
-          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php && php -l /opt/src/JekyllBuildServiceFork.php && php -l /opt/src/JekyllErrorAnalyzer.php'
+          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php && php -l /opt/src/JekyllBuildServiceFork.php && php -l /opt/src/JekyllErrorAnalyzer.php && php -l /opt/src/JekyllErrorAnalyzerFork.php'
           docker run --rm --entrypoint apache2ctl leuffen-jekyll-builder:local configtest
           docker compose -f tests/compose.yml config --quiet
       - name: Validate PHP client
