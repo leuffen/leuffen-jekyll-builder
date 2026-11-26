@@ -26,7 +26,9 @@ server currently requires no external Composer libraries.
 ### Jekyll runtime
 
 Both build backends use the same isolated RubyGems installation in
-`/opt/jekyll-gems`. The Dockerfile pins the direct gem versions: Jekyll 4.4.1,
+`/opt/jekyll-gems`. Kickstart runs `container/install-jekyll.sh` via the
+`build` command in `container/.kick.yml` for both development and Docker
+image builds. The script pins the direct gem versions: Jekyll 4.4.1,
 Jekyll Sass Converter 3.1.0 (Dart Sass via `sass-embedded`), Polyglot 1.14.0,
 Optional Front Matter, Sitemap, SEO Tag and Feed. Remote Theme is deliberately
 not installed.
