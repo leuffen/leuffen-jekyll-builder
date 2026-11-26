@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/JekyllBuildService.php';
+require_once __DIR__ . '/../src/JekyllBuildServiceFork.php';
 
 use Leuffen\JekyllBuilder\JekyllBuildService;
+use Leuffen\JekyllBuilder\JekyllBuildServiceFork;
 use Leuffen\JekyllBuilder\BuildException;
 
 header('X-Content-Type-Options: nosniff');
@@ -18,8 +20,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || parse_url($_SERVER['REQUEST
     exit;
 }
 
-$service = new JekyllBuildService();
 try {
+    $service = match (getenv('JEKYLL_BUILD_MODE') ?: 'fork') {
+        'command' => new JekyllBuildService(),
+        'fork' => new JekyllBuildServiceFork(),
+        default => throw new BuildException('Invalid JEKYLL_BUILD_MODE', 500),
+    };
     try {
         $archive = $service->buildFromRequest();
     } finally {

@@ -40,6 +40,25 @@ if (strlen($debugHeader) > 3072 || !is_int($debug['timingInfo']['jekyll'] ?? nul
     || !is_bool($debug['truncated'] ?? null)) {
     throw new RuntimeException('Invalid HTTP debug metadata');
 }
+$phases = ['zipExtract', 'zipCreate'];
+$forkPhases = ['jekyllWorkerStartup', 'jekyllConfig', 'jekyllSetup', 'jekyllRead',
+    'jekyllGenerate', 'jekyllRender', 'jekyllCleanup', 'jekyllWrite'];
+$mode = getenv('JEKYLL_BUILD_MODE') ?: 'fork';
+if ($mode === 'fork') {
+    $phases = array_merge($phases, $forkPhases);
+} else {
+    foreach ($forkPhases as $phase) {
+        if (isset($debug['timingInfo'][$phase])) {
+            throw new RuntimeException('Command backend unexpectedly reported fork timing: ' . $phase);
+        }
+    }
+}
+foreach ($phases as $phase) {
+    if (!is_int($debug['timingInfo'][$phase] ?? null) || $debug['timingInfo'][$phase] < 0) {
+        throw new RuntimeException('Missing build timing: ' . $phase);
+    }
+}
+echo 'First build timings (ms): ' . json_encode($debug['timingInfo'], JSON_THROW_ON_ERROR) . "\n";
 
 $zipPath = $directory . '/output.zip';
 file_put_contents($zipPath, $success->getBody());
@@ -141,6 +160,14 @@ $html = file_get_contents($gitTarget . '/index.html');
 if ($html === false || !str_contains($html, 'git-metadata-verified')) {
     throw new RuntimeException('Expected successful build with verified Git metadata exclusion');
 }
+
+// Ein neuer Build darf weder Hooks noch Warnungen des vorherigen Projekts übernehmen.
+$client->build(__DIR__ . '/fixtures/site', $directory . '/warm-published');
+$warmDebug = $client->getDebugInfo();
+if (in_array('Warning: preview smoke warning', $warmDebug['warnings'], true)) {
+    throw new RuntimeException('Project plugin warnings leaked into a later build');
+}
+echo 'Warm build timings (ms): ' . json_encode($warmDebug['timingInfo'], JSON_THROW_ON_ERROR) . "\n";
 
 try {
     $client->build(__DIR__ . '/fixtures/site', $target);

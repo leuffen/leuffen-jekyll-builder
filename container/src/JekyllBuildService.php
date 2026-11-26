@@ -13,17 +13,17 @@ use ZipArchive;
 require_once __DIR__ . '/BuildException.php';
 require_once __DIR__ . '/JekyllErrorAnalyzer.php';
 
-final class JekyllBuildService
+class JekyllBuildService
 {
     private const MAX_UPLOAD = 20 * 1024 * 1024;
     private const MAX_UNPACKED = 100 * 1024 * 1024;
     private const MAX_ENTRIES = 10000;
     private const MAX_OUTPUT = 100 * 1024 * 1024;
-    private const BUILD_TIMEOUT = 120;
+    protected const BUILD_TIMEOUT = 120;
     private const DEBUG_INFO_MAX_BYTES = 3072;
 
     /** @var array<string, int> */
-    private array $timingInfo = [];
+    protected array $timingInfo = [];
     /** @var list<string> */
     private array $warnings = [];
     private bool $warningsTruncated = false;
@@ -113,6 +113,7 @@ final class JekyllBuildService
             fclose($stream);
             fclose($destination);
 
+            $extractStarted = hrtime(true);
             $zip = new ZipArchive();
             if ($zip->open($input) !== true) {
                 throw new BuildException('Invalid ZIP archive');
@@ -157,28 +158,17 @@ final class JekyllBuildService
                 $zip->close();
             }
 
-            // Execute Jekyll with fixed arguments, an isolated workspace and
-            // a hard deadline; redirect output to files to avoid pipe blocking.
+            $this->timingInfo['zipExtract'] = (int) ((hrtime(true) - $extractStarted) / 1000000);
+
+            // Beide Build-Varianten verwenden dieselben Logs und Fehlerdiagnosen.
             $stdoutFile = $root . '/stdout.log';
             $stderrFile = $root . '/stderr.log';
-            $command = [
-                'timeout', '--signal=TERM', '--kill-after=5s', self::BUILD_TIMEOUT . 's',
-                'jekyll', 'build', '--source', $source, '--destination', $target,
-            ];
-            $pipes = [];
             $processStarted = hrtime(true);
-            $process = proc_open($command, [
-                0 => ['file', '/dev/null', 'r'],
-                1 => ['file', $stdoutFile, 'w'],
-                2 => ['file', $stderrFile, 'w'],
-            ], $pipes, $root, ['PATH' => getenv('PATH') ?: '/usr/bin:/bin',
-                'HOME' => $root, 'JEKYLL_NO_BUNDLER_REQUIRE' => 'true',
-                'JEKYLL_ENV' => getenv('JEKYLL_ENV') ?: 'production']);
-            if (!is_resource($process)) {
-                throw new BuildException('Cannot start Jekyll', 500);
+            try {
+                $exitCode = $this->runBuild($root);
+            } finally {
+                $this->timingInfo['jekyll'] = (int) ((hrtime(true) - $processStarted) / 1000000);
             }
-            $exitCode = proc_close($process);
-            $this->timingInfo['jekyll'] = (int) ((hrtime(true) - $processStarted) / 1000000);
             $stdout = substr((string) @file_get_contents($stdoutFile), 0, 65536);
             $stderr = substr((string) @file_get_contents($stderrFile), 0, 65536);
             $this->collectWarnings($stdout, $source);
@@ -198,6 +188,7 @@ final class JekyllBuildService
                 );
             }
 
+            $archiveStarted = hrtime(true);
             $archive = new ZipArchive();
             if ($archive->open($output, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
                 throw new BuildException('Cannot create output ZIP', 500);
@@ -237,6 +228,8 @@ final class JekyllBuildService
                 $archive->close();
             }
 
+            $this->timingInfo['zipCreate'] = (int) ((hrtime(true) - $archiveStarted) / 1000000);
+
             if (!is_file($output)) {
                 throw new BuildException('Output ZIP was not created', 500);
             }
@@ -251,6 +244,30 @@ final class JekyllBuildService
         } finally {
             $this->deleteDirectory($root);
         }
+    }
+
+    protected function runBuild(string $root): int
+    {
+        $source = $root . '/source';
+        $target = $root . '/site';
+        $stdoutFile = $root . '/stdout.log';
+        $stderrFile = $root . '/stderr.log';
+        $command = [
+            'timeout', '--signal=TERM', '--kill-after=5s', self::BUILD_TIMEOUT . 's',
+            'jekyll', 'build', '--source', $source, '--destination', $target,
+        ];
+        $pipes = [];
+        $process = proc_open($command, [
+            0 => ['file', '/dev/null', 'r'],
+            1 => ['file', $stdoutFile, 'w'],
+            2 => ['file', $stderrFile, 'w'],
+        ], $pipes, $root, ['PATH' => getenv('PATH') ?: '/usr/bin:/bin',
+            'HOME' => $root, 'JEKYLL_NO_BUNDLER_REQUIRE' => 'true',
+            'JEKYLL_ENV' => getenv('JEKYLL_ENV') ?: 'production']);
+        if (!is_resource($process)) {
+            throw new BuildException('Cannot start Jekyll', 500);
+        }
+        return proc_close($process);
     }
 
     private function collectWarnings(string $output, string $source): void
