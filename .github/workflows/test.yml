@@ -22,6 +22,9 @@ jobs:
           file: container/Dockerfile
           load: true
           tags: leuffen-jekyll-builder:local
+      - name: Validate Ruby preloader
+        run: |
+          docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'ruby -c /opt/src/jekyll-preloader.rb && bash -n /opt/start-jekyll.sh'
       - name: Validate PHP and Apache
         run: |
           docker run --rm --entrypoint sh leuffen-jekyll-builder:local -c 'php -l /opt/www/index.php && php -l /opt/src/BuildException.php && php -l /opt/src/JekyllBuildService.php && php -l /opt/src/JekyllErrorAnalyzer.php'
