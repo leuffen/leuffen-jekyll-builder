@@ -48,6 +48,8 @@ try {
         'line' => $e->sourceLine,
         'excerpt' => $e->excerpt,
         'cause' => $e->cause,
+        'errorType' => $e->errorType,
+        'column' => $e->sourceColumn,
     ], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('Jekyll Builder internal error: ' . $e->getMessage());
