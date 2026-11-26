@@ -174,7 +174,7 @@ class JekyllBuildService
             $this->collectWarnings($stdout, $source);
             $this->collectWarnings($stderr, $source);
             if ($exitCode !== 0) {
-                $diagnostic = (new JekyllErrorAnalyzer())->analyze($stderr, $stdout, $source);
+                $diagnostic = $this->errorAnalyzer()->analyze($stderr, $stdout, $source);
                 throw new BuildException(
                     $exitCode === 124 ? 'Jekyll build timed out' : 'Jekyll build failed',
                     422,
@@ -185,6 +185,8 @@ class JekyllBuildService
                     $diagnostic['line'],
                     $diagnostic['excerpt'],
                     $diagnostic['cause'],
+                    $diagnostic['errorType'] ?? null,
+                    $diagnostic['column'] ?? null,
                 );
             }
 
@@ -244,6 +246,11 @@ class JekyllBuildService
         } finally {
             $this->deleteDirectory($root);
         }
+    }
+
+    protected function errorAnalyzer(): JekyllErrorAnalyzer
+    {
+        return new JekyllErrorAnalyzer();
     }
 
     protected function runBuild(string $root): int
